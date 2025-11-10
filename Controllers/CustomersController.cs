@@ -81,12 +81,25 @@ public class CustomersController : ControllerBase
     [HttpPut("{id}")]
     public async Task<IActionResult> UpdateCustomer(Guid id, Customer customer)
     {
-        if (id != customer.Id)
+        var existingCustomer = await _context.Customers
+            .Include(c => c.Sales)
+            .Include(c => c.Orders)
+            .FirstOrDefaultAsync(c => c.Id == id);
+
+        if (existingCustomer == null)
         {
-            return BadRequest();
+            return NotFound();
         }
 
-        _context.Entry(customer).State = EntityState.Modified;
+        // Atualizar apenas os campos modificáveis
+        existingCustomer.Name = customer.Name;
+        existingCustomer.Email = customer.Email;
+        existingCustomer.Phone = customer.Phone;
+        existingCustomer.Address = customer.Address;
+        existingCustomer.City = customer.City;
+        existingCustomer.State = customer.State;
+        existingCustomer.BirthDate = customer.BirthDate;
+        existingCustomer.JarCredits = customer.JarCredits;
 
         try
         {

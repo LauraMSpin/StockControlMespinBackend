@@ -83,12 +83,35 @@ public class ProductsController : ControllerBase
     [HttpPut("{id}")]
     public async Task<IActionResult> UpdateProduct(Guid id, Product product)
     {
-        if (id != product.Id)
+        var existingProduct = await _context.Products
+            .Include(p => p.ProductionMaterials)
+            .Include(p => p.PriceHistories)
+            .FirstOrDefaultAsync(p => p.Id == id);
+
+        if (existingProduct == null)
         {
-            return BadRequest();
+            return NotFound();
         }
 
-        _context.Entry(product).State = EntityState.Modified;
+        // Atualizar apenas os campos modificáveis
+        existingProduct.Name = product.Name;
+        existingProduct.Description = product.Description;
+        existingProduct.Price = product.Price;
+        existingProduct.Quantity = product.Quantity;
+        existingProduct.Category = product.Category;
+        existingProduct.Fragrance = product.Fragrance;
+        existingProduct.Weight = product.Weight;
+        existingProduct.UpdatedAt = DateTime.UtcNow;
+
+        // Manter ProductionMaterials e PriceHistories se foram enviados
+        if (product.ProductionMaterials != null)
+        {
+            existingProduct.ProductionMaterials = product.ProductionMaterials;
+        }
+        if (product.PriceHistories != null)
+        {
+            existingProduct.PriceHistories = product.PriceHistories;
+        }
 
         try
         {
@@ -135,7 +158,8 @@ public class ProductsController : ControllerBase
             return NotFound();
         }
 
-        product.Quantity += quantity;
+        // Define a quantidade total, não adiciona
+        product.Quantity = quantity;
         await _context.SaveChangesAsync();
 
         return Ok(new { product.Id, product.Name, product.Quantity });
