@@ -2,6 +2,7 @@ using Microsoft.AspNetCore.Mvc;
 using Microsoft.EntityFrameworkCore;
 using EstoqueBackEnd.Data;
 using EstoqueBackEnd.Models;
+using EstoqueBackEnd.DTOs;
 
 namespace EstoqueBackEnd.Controllers;
 
@@ -81,7 +82,7 @@ public class ProductsController : ControllerBase
 
     // PUT: api/Products/5
     [HttpPut("{id}")]
-    public async Task<IActionResult> UpdateProduct(Guid id, Product product)
+    public async Task<IActionResult> UpdateProduct(Guid id, [FromBody] UpdateProductDto productDto)
     {
         var existingProduct = await _context.Products
             .Include(p => p.ProductionMaterials)
@@ -94,23 +95,78 @@ public class ProductsController : ControllerBase
         }
 
         // Atualizar apenas os campos modificáveis
-        existingProduct.Name = product.Name;
-        existingProduct.Description = product.Description;
-        existingProduct.Price = product.Price;
-        existingProduct.Quantity = product.Quantity;
-        existingProduct.Category = product.Category;
-        existingProduct.Fragrance = product.Fragrance;
-        existingProduct.Weight = product.Weight;
+        existingProduct.Name = productDto.Name;
+        existingProduct.Description = productDto.Description;
+        existingProduct.Price = productDto.Price;
+        existingProduct.Quantity = productDto.Quantity;
+        existingProduct.Category = productDto.Category;
+        existingProduct.Fragrance = productDto.Fragrance;
+        existingProduct.Weight = productDto.Weight;
+        existingProduct.ProductionCost = productDto.ProductionCost;
+        existingProduct.ProfitMargin = productDto.ProfitMargin;
         existingProduct.UpdatedAt = DateTime.UtcNow;
 
-        // Manter ProductionMaterials e PriceHistories se foram enviados
-        if (product.ProductionMaterials != null)
+        // Atualizar ProductionMaterials se foram enviados
+        if (productDto.ProductionMaterials != null)
         {
-            existingProduct.ProductionMaterials = product.ProductionMaterials;
+            // Buscar materiais existentes no banco
+            var existingMaterials = await _context.ProductionMaterials
+                .Where(pm => pm.ProductId == existingProduct.Id)
+                .ToListAsync();
+
+            // Remover materiais existentes apenas se houver algum
+            if (existingMaterials.Any())
+            {
+                _context.ProductionMaterials.RemoveRange(existingMaterials);
+            }
+
+            // Adicionar novos materiais
+            foreach (var materialDto in productDto.ProductionMaterials)
+            {
+                var newMaterial = new ProductionMaterial
+                {
+                    Id = Guid.NewGuid(),
+                    ProductId = existingProduct.Id,
+                    MaterialId = Guid.Parse(materialDto.MaterialId),
+                    MaterialName = materialDto.MaterialName,
+                    Quantity = materialDto.Quantity,
+                    Unit = materialDto.Unit,
+                    CostPerUnit = materialDto.CostPerUnit,
+                    TotalCost = materialDto.TotalCost,
+                    CreatedAt = DateTime.UtcNow,
+                    UpdatedAt = DateTime.UtcNow
+                };
+                _context.ProductionMaterials.Add(newMaterial);
+            }
         }
-        if (product.PriceHistories != null)
+
+        // Atualizar PriceHistories se foram enviados
+        if (productDto.PriceHistories != null)
         {
-            existingProduct.PriceHistories = product.PriceHistories;
+            // Buscar históricos existentes no banco
+            var existingHistories = await _context.PriceHistories
+                .Where(ph => ph.ProductId == existingProduct.Id)
+                .ToListAsync();
+
+            // Remover históricos existentes apenas se houver algum
+            if (existingHistories.Any())
+            {
+                _context.PriceHistories.RemoveRange(existingHistories);
+            }
+
+            // Adicionar novos históricos
+            foreach (var historyDto in productDto.PriceHistories)
+            {
+                var newHistory = new PriceHistory
+                {
+                    Id = Guid.NewGuid(),
+                    ProductId = existingProduct.Id,
+                    Price = historyDto.Price,
+                    Date = historyDto.Date,
+                    Reason = historyDto.Reason
+                };
+                _context.PriceHistories.Add(newHistory);
+            }
         }
 
         try
