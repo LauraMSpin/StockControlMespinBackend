@@ -2,6 +2,7 @@ using Microsoft.AspNetCore.Mvc;
 using Microsoft.EntityFrameworkCore;
 using EstoqueBackEnd.Data;
 using EstoqueBackEnd.Models;
+using EstoqueBackEnd.DTOs;
 
 namespace EstoqueBackEnd.Controllers;
 
@@ -74,47 +75,74 @@ public class SalesController : ControllerBase
     {
         return await _context.Sales
             .Include(s => s.Items)
-            .Where(s => s.Status == "pending" || s.Status == "awaiting_payment")
+            .Where(s => s.Status == SaleStatus.Pending || s.Status == SaleStatus.AwaitingPayment)
             .OrderBy(s => s.SaleDate)
             .ToListAsync();
     }
 
     // POST: api/Sales
     [HttpPost]
-    public async Task<ActionResult<Sale>> CreateSale(Sale sale)
+    public async Task<ActionResult<Sale>> CreateSale([FromBody] CreateOrderDto saleDto)
     {
         using var transaction = await _context.Database.BeginTransactionAsync();
         
         try
         {
-            sale.Id = Guid.NewGuid();
-            sale.CreatedAt = DateTime.UtcNow;
-            sale.UpdatedAt = DateTime.UtcNow;
+            // Converter status string para enum (aceita snake_case e PascalCase)
+            var statusValue = saleDto.Status.Replace("_", "");
+            if (!Enum.TryParse<SaleStatus>(statusValue, true, out var saleStatus))
+            {
+                return BadRequest(new { message = $"Status inválido: {saleDto.Status}" });
+            }
+
+            var sale = new Sale
+            {
+                Id = Guid.NewGuid(),
+                CustomerId = Guid.Parse(saleDto.CustomerId),
+                CustomerName = saleDto.CustomerName,
+                SaleDate = saleDto.SaleDate,
+                Subtotal = saleDto.Subtotal,
+                DiscountPercentage = saleDto.DiscountPercentage,
+                DiscountAmount = saleDto.DiscountAmount,
+                TotalAmount = saleDto.TotalAmount,
+                Status = saleStatus,
+                Notes = saleDto.Notes,
+                CreatedAt = DateTime.UtcNow,
+                UpdatedAt = DateTime.UtcNow,
+                Items = new List<SaleItem>()
+            };
 
             // Processar itens
-            foreach (var item in sale.Items)
+            foreach (var itemDto in saleDto.Items)
             {
-                item.Id = Guid.NewGuid();
-                item.SaleId = sale.Id;
-                item.CreatedAt = DateTime.UtcNow;
+                var item = new SaleItem
+                {
+                    Id = Guid.NewGuid(),
+                    SaleId = sale.Id,
+                    ProductId = Guid.Parse(itemDto.ProductId),
+                    ProductName = itemDto.ProductName,
+                    Quantity = itemDto.Quantity,
+                    UnitPrice = itemDto.UnitPrice,
+                    TotalPrice = itemDto.TotalPrice,
+                    CreatedAt = DateTime.UtcNow
+                };
+
+                sale.Items.Add(item);
 
                 // Atualizar estoque do produto
                 var product = await _context.Products.FindAsync(item.ProductId);
                 if (product == null)
                 {
-                    return BadRequest(new { message = $"Produto {item.ProductName} não encontrado." });
+                    return BadRequest(new { message = $"Produto {itemDto.ProductName} não encontrado." });
                 }
 
                 if (product.Quantity < item.Quantity)
                 {
-                    return BadRequest(new { message = $"Estoque insuficiente para {item.ProductName}. Disponível: {product.Quantity}" });
+                    return BadRequest(new { message = $"Estoque insuficiente para {itemDto.ProductName}. Disponível: {product.Quantity}" });
                 }
 
                 product.Quantity -= item.Quantity;
             }
-
-            // Atualizar créditos de potes se aplicável (se houver lógica específica)
-            // Isso seria feito no frontend, mas pode ser validado aqui
 
             _context.Sales.Add(sale);
             await _context.SaveChangesAsync();
@@ -131,13 +159,8 @@ public class SalesController : ControllerBase
 
     // PUT: api/Sales/5
     [HttpPut("{id}")]
-    public async Task<IActionResult> UpdateSale(Guid id, Sale sale)
+    public async Task<IActionResult> UpdateSale(Guid id, [FromBody] UpdateSaleDto saleDto)
     {
-        if (id != sale.Id)
-        {
-            return BadRequest();
-        }
-
         var existingSale = await _context.Sales
             .Include(s => s.Items)
             .FirstOrDefaultAsync(s => s.Id == id);
@@ -148,9 +171,27 @@ public class SalesController : ControllerBase
         }
 
         // Não permitir editar vendas pagas
-        if (existingSale.Status == "paid")
+        if (existingSale.Status == SaleStatus.Paid)
         {
             return BadRequest(new { message = "Vendas pagas não podem ser editadas." });
+        }
+
+        // Converter status string para enum (aceita snake_case e PascalCase)
+        var statusValue = saleDto.Status.Replace("_", "");
+        if (!Enum.TryParse<SaleStatus>(statusValue, true, out var saleStatus))
+        {
+            return BadRequest(new { message = $"Status inválido: {saleDto.Status}" });
+        }
+
+        // Converter payment method se fornecido (aceita snake_case e PascalCase)
+        PaymentMethod? paymentMethod = null;
+        if (!string.IsNullOrEmpty(saleDto.PaymentMethod))
+        {
+            var paymentValue = saleDto.PaymentMethod.Replace("_", "");
+            if (Enum.TryParse<PaymentMethod>(paymentValue, true, out var pm))
+            {
+                paymentMethod = pm;
+            }
         }
 
         using var transaction = await _context.Database.BeginTransactionAsync();
@@ -167,37 +208,58 @@ public class SalesController : ControllerBase
                 }
             }
 
-            // Remover itens antigos
-            _context.SaleItems.RemoveRange(existingSale.Items);
+            // Remover itens antigos do banco
+            var existingItems = await _context.SaleItems
+                .Where(si => si.SaleId == id)
+                .ToListAsync();
+            if (existingItems.Any())
+            {
+                _context.SaleItems.RemoveRange(existingItems);
+            }
 
             // Adicionar novos itens e atualizar estoque
-            foreach (var newItem in sale.Items)
+            foreach (var itemDto in saleDto.Items)
             {
-                newItem.Id = Guid.NewGuid();
-                newItem.SaleId = sale.Id;
-                newItem.CreatedAt = DateTime.UtcNow;
+                var newItem = new SaleItem
+                {
+                    Id = Guid.NewGuid(),
+                    SaleId = id,
+                    ProductId = Guid.Parse(itemDto.ProductId),
+                    ProductName = itemDto.ProductName,
+                    Quantity = itemDto.Quantity,
+                    UnitPrice = itemDto.UnitPrice,
+                    TotalPrice = itemDto.TotalPrice,
+                    CreatedAt = DateTime.UtcNow
+                };
 
                 var product = await _context.Products.FindAsync(newItem.ProductId);
-                if (product == null || product.Quantity < newItem.Quantity)
+                if (product == null)
                 {
                     await transaction.RollbackAsync();
-                    return BadRequest(new { message = $"Estoque insuficiente para {newItem.ProductName}" });
+                    return BadRequest(new { message = $"Produto {itemDto.ProductName} não encontrado." });
+                }
+
+                if (product.Quantity < newItem.Quantity)
+                {
+                    await transaction.RollbackAsync();
+                    return BadRequest(new { message = $"Estoque insuficiente para {itemDto.ProductName}. Disponível: {product.Quantity}" });
                 }
 
                 product.Quantity -= newItem.Quantity;
+                _context.SaleItems.Add(newItem);
             }
 
             // Atualizar venda
-            existingSale.CustomerId = sale.CustomerId;
-            existingSale.CustomerName = sale.CustomerName;
-            existingSale.Subtotal = sale.Subtotal;
-            existingSale.DiscountPercentage = sale.DiscountPercentage;
-            existingSale.DiscountAmount = sale.DiscountAmount;
-            existingSale.TotalAmount = sale.TotalAmount;
-            existingSale.SaleDate = sale.SaleDate;
-            existingSale.Status = sale.Status;
-            existingSale.PaymentMethodValue = sale.PaymentMethodValue;
-            existingSale.Notes = sale.Notes;
+            existingSale.CustomerId = Guid.Parse(saleDto.CustomerId);
+            existingSale.CustomerName = saleDto.CustomerName;
+            existingSale.Subtotal = saleDto.Subtotal;
+            existingSale.DiscountPercentage = saleDto.DiscountPercentage;
+            existingSale.DiscountAmount = saleDto.DiscountAmount;
+            existingSale.TotalAmount = saleDto.TotalAmount;
+            existingSale.SaleDate = saleDto.SaleDate;
+            existingSale.Status = saleStatus;
+            existingSale.PaymentMethodValue = paymentMethod;
+            existingSale.Notes = saleDto.Notes;
             existingSale.UpdatedAt = DateTime.UtcNow;
 
             await _context.SaveChangesAsync();
@@ -214,7 +276,7 @@ public class SalesController : ControllerBase
 
     // PATCH: api/Sales/5/status
     [HttpPatch("{id}/status")]
-    public async Task<IActionResult> UpdateSaleStatus(Guid id, [FromBody] string status)
+    public async Task<IActionResult> UpdateSaleStatus(Guid id, [FromBody] UpdateSaleStatusRequest request)
     {
         var sale = await _context.Sales.FindAsync(id);
         if (sale == null)
@@ -222,13 +284,25 @@ public class SalesController : ControllerBase
             return NotFound();
         }
 
-        var validStatuses = new[] { "pending", "awaiting_payment", "paid", "cancelled" };
-        if (!validStatuses.Contains(status))
+        // Converter status string para enum (aceita snake_case e PascalCase)
+        var statusValue = request.Status.Replace("_", "");
+        if (!Enum.TryParse<SaleStatus>(statusValue, true, out var saleStatus))
         {
             return BadRequest(new { message = "Status inválido" });
         }
 
-        sale.Status = status;
+        sale.Status = saleStatus;
+        
+        // Atualizar paymentMethod se fornecido
+        if (!string.IsNullOrEmpty(request.PaymentMethod))
+        {
+            var paymentValue = request.PaymentMethod.Replace("_", "");
+            if (Enum.TryParse<PaymentMethod>(paymentValue, true, out var paymentMethod))
+            {
+                sale.PaymentMethodValue = paymentMethod;
+            }
+        }
+        
         sale.UpdatedAt = DateTime.UtcNow;
         await _context.SaveChangesAsync();
 
@@ -249,7 +323,7 @@ public class SalesController : ControllerBase
         }
 
         // Não permitir excluir vendas pagas
-        if (sale.Status == "paid")
+        if (sale.Status == SaleStatus.Paid)
         {
             return BadRequest(new { message = "Vendas pagas não podem ser excluídas." });
         }
@@ -280,4 +354,10 @@ public class SalesController : ControllerBase
             return StatusCode(500, new { message = "Erro ao excluir venda", error = ex.Message });
         }
     }
+}
+
+public class UpdateSaleStatusRequest
+{
+    public string Status { get; set; } = string.Empty;
+    public string? PaymentMethod { get; set; }
 }

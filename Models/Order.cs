@@ -57,10 +57,10 @@ public class Order
 
     [Required]
     [Column("status")]
-    public string Status { get; set; } = "pending";
+    public OrderStatus Status { get; set; } = OrderStatus.Pending;
 
     [Column("payment_method")]
-    public string? PaymentMethodValue { get; set; }
+    public PaymentMethod? PaymentMethodValue { get; set; }
 
     [Column("notes")]
     public string? Notes { get; set; }

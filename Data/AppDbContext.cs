@@ -28,6 +28,11 @@ public class AppDbContext : DbContext
     {
         base.OnModelCreating(modelBuilder);
 
+        // Configurar enums do PostgreSQL
+        modelBuilder.HasPostgresEnum<PaymentMethod>("payment_method");
+        modelBuilder.HasPostgresEnum<SaleStatus>("sale_status");
+        modelBuilder.HasPostgresEnum<OrderStatus>("order_status");
+
         // Configuração de precisão decimal para PostgreSQL
         foreach (var property in modelBuilder.Model.GetEntityTypes()
             .SelectMany(t => t.GetProperties())

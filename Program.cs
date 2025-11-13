@@ -10,11 +10,18 @@ builder.Services.AddControllers()
     {
         options.JsonSerializerOptions.ReferenceHandler = ReferenceHandler.IgnoreCycles;
         options.JsonSerializerOptions.DefaultIgnoreCondition = JsonIgnoreCondition.WhenWritingNull;
+        options.JsonSerializerOptions.Converters.Add(new JsonStringEnumConverter(allowIntegerValues: false));
     });
 
-// Configure PostgreSQL with EF Core
+// Configure PostgreSQL with EF Core - Mapear ENUMs do PostgreSQL
 builder.Services.AddDbContext<AppDbContext>(options =>
-    options.UseNpgsql(builder.Configuration.GetConnectionString("DefaultConnection")));
+    options.UseNpgsql(
+        builder.Configuration.GetConnectionString("DefaultConnection"),
+        o => {
+            o.MapEnum<EstoqueBackEnd.Models.PaymentMethod>("payment_method");
+            o.MapEnum<EstoqueBackEnd.Models.SaleStatus>("sale_status");
+            o.MapEnum<EstoqueBackEnd.Models.OrderStatus>("order_status");
+        }));
 
 // Add CORS
 builder.Services.AddCors(options =>

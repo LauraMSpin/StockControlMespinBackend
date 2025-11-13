@@ -52,10 +52,11 @@ public class Sale
 
     [Required]
     [Column("status")]
-    public string Status { get; set; } = "pending";
+    public SaleStatus Status { get; set; } = SaleStatus.Pending;
 
     [Column("payment_method")]
-    public string? PaymentMethodValue { get; set; }
+    [System.Text.Json.Serialization.JsonPropertyName("paymentMethod")]
+    public PaymentMethod? PaymentMethodValue { get; set; }
 
     [Column("notes")]
     public string? Notes { get; set; }

@@ -61,7 +61,7 @@ public class OrdersController : ControllerBase
     public async Task<ActionResult<IEnumerable<Order>>> GetPendingOrders()
     {
         return await _context.Orders
-            .Where(o => o.Status != "delivered" && o.Status != "cancelled")
+            .Where(o => o.Status != OrderStatus.Delivered && o.Status != OrderStatus.Cancelled)
             .Include(o => o.Customer)
             .Include(o => o.Product)
             .OrderBy(o => o.ExpectedDeliveryDate)
@@ -107,13 +107,13 @@ public class OrdersController : ControllerBase
         existingOrder.UpdatedAt = DateTime.UtcNow;
 
         // Se está sendo marcado como entregue e não tinha data de entrega
-        if (order.Status == "delivered" && existingOrder.DeliveredDate == null && order.DeliveredDate != null)
+        if (order.Status == OrderStatus.Delivered && existingOrder.DeliveredDate == null && order.DeliveredDate != null)
         {
             existingOrder.DeliveredDate = DateTime.UtcNow;
         }
 
         // Atualizar método de pagamento se fornecido
-        if (!string.IsNullOrEmpty(order.PaymentMethodValue))
+        if (order.PaymentMethodValue.HasValue)
         {
             existingOrder.PaymentMethodValue = order.PaymentMethodValue;
         }
@@ -147,16 +147,27 @@ public class OrdersController : ControllerBase
             return NotFound();
         }
 
-        order.Status = request.Status;
+        // Converter status string para enum (aceita snake_case e PascalCase)
+        var statusValue = request.Status.Replace("_", "");
+        if (!Enum.TryParse<OrderStatus>(statusValue, true, out var orderStatus))
+        {
+            return BadRequest(new { message = "Status inválido" });
+        }
+
+        order.Status = orderStatus;
         order.UpdatedAt = DateTime.UtcNow;
 
         // If delivered, set delivered date and payment method
-        if (request.Status == "delivered")
+        if (orderStatus == OrderStatus.Delivered)
         {
             order.DeliveredDate = DateTime.UtcNow;
             if (!string.IsNullOrEmpty(request.PaymentMethod))
             {
-                order.PaymentMethodValue = request.PaymentMethod;
+                var paymentValue = request.PaymentMethod.Replace("_", "");
+                if (Enum.TryParse<PaymentMethod>(paymentValue, true, out var paymentMethod))
+                {
+                    order.PaymentMethodValue = paymentMethod;
+                }
             }
 
             // Create a sale record when order is delivered
@@ -168,8 +179,8 @@ public class OrdersController : ControllerBase
                 SaleDate = DateTime.UtcNow,
                 Subtotal = order.TotalAmount,
                 TotalAmount = order.TotalAmount,
-                PaymentMethodValue = order.PaymentMethodValue ?? "pix",
-                Status = "paid",
+                PaymentMethodValue = order.PaymentMethodValue ?? PaymentMethod.Pix,
+                Status = SaleStatus.Paid,
                 FromOrder = true,
                 Notes = $"Venda automática da encomenda #{order.Id}",
                 CreatedAt = DateTime.UtcNow,
