@@ -2,6 +2,7 @@ using Microsoft.AspNetCore.Mvc;
 using Microsoft.EntityFrameworkCore;
 using EstoqueBackEnd.Data;
 using EstoqueBackEnd.Models;
+using EstoqueBackEnd.DTOs;
 
 namespace EstoqueBackEnd.Controllers;
 
@@ -70,11 +71,45 @@ public class OrdersController : ControllerBase
 
     // POST: api/Orders
     [HttpPost]
-    public async Task<ActionResult<Order>> CreateOrder(Order order)
+    public async Task<ActionResult<Order>> CreateOrder(OrderDto orderDto)
     {
-        order.Id = Guid.NewGuid();
-        order.CreatedAt = DateTime.UtcNow;
-        order.UpdatedAt = DateTime.UtcNow;
+        // Converter status string para enum (aceita snake_case e PascalCase)
+        var statusValue = orderDto.Status.Replace("_", "");
+        if (!Enum.TryParse<OrderStatus>(statusValue, true, out var orderStatus))
+        {
+            return BadRequest(new { message = $"Status inválido: {orderDto.Status}" });
+        }
+
+        // Converter payment method se fornecido (aceita snake_case e PascalCase)
+        PaymentMethod? paymentMethod = null;
+        if (!string.IsNullOrEmpty(orderDto.PaymentMethod))
+        {
+            var paymentValue = orderDto.PaymentMethod.Replace("_", "");
+            if (Enum.TryParse<PaymentMethod>(paymentValue, true, out var pm))
+            {
+                paymentMethod = pm;
+            }
+        }
+
+        var order = new Order
+        {
+            Id = Guid.NewGuid(),
+            CustomerId = Guid.Parse(orderDto.CustomerId),
+            CustomerName = orderDto.CustomerName,
+            ProductId = Guid.Parse(orderDto.ProductId),
+            ProductName = orderDto.ProductName,
+            Quantity = orderDto.Quantity,
+            UnitPrice = orderDto.UnitPrice,
+            TotalAmount = orderDto.TotalAmount,
+            OrderDate = orderDto.OrderDate,
+            ExpectedDeliveryDate = orderDto.ExpectedDeliveryDate,
+            DeliveredDate = orderDto.DeliveredDate,
+            Status = orderStatus,
+            PaymentMethodValue = paymentMethod,
+            Notes = orderDto.Notes,
+            CreatedAt = DateTime.UtcNow,
+            UpdatedAt = DateTime.UtcNow
+        };
 
         _context.Orders.Add(order);
         await _context.SaveChangesAsync();
@@ -84,7 +119,7 @@ public class OrdersController : ControllerBase
 
     // PUT: api/Orders/5
     [HttpPut("{id}")]
-    public async Task<IActionResult> UpdateOrder(Guid id, Order order)
+    public async Task<IActionResult> UpdateOrder(Guid id, OrderDto orderDto)
     {
         var existingOrder = await _context.Orders.FindAsync(id);
         if (existingOrder == null)
@@ -92,30 +127,48 @@ public class OrdersController : ControllerBase
             return NotFound();
         }
 
+        // Converter status string para enum (aceita snake_case e PascalCase)
+        var statusValue = orderDto.Status.Replace("_", "");
+        if (!Enum.TryParse<OrderStatus>(statusValue, true, out var orderStatus))
+        {
+            return BadRequest(new { message = $"Status inválido: {orderDto.Status}" });
+        }
+
+        // Converter payment method se fornecido (aceita snake_case e PascalCase)
+        PaymentMethod? paymentMethod = null;
+        if (!string.IsNullOrEmpty(orderDto.PaymentMethod))
+        {
+            var paymentValue = orderDto.PaymentMethod.Replace("_", "");
+            if (Enum.TryParse<PaymentMethod>(paymentValue, true, out var pm))
+            {
+                paymentMethod = pm;
+            }
+        }
+
         // Atualizar apenas os campos necessários
-        existingOrder.CustomerId = order.CustomerId;
-        existingOrder.CustomerName = order.CustomerName;
-        existingOrder.ProductId = order.ProductId;
-        existingOrder.ProductName = order.ProductName;
-        existingOrder.Quantity = order.Quantity;
-        existingOrder.UnitPrice = order.UnitPrice;
-        existingOrder.TotalAmount = order.TotalAmount;
-        existingOrder.OrderDate = order.OrderDate;
-        existingOrder.ExpectedDeliveryDate = order.ExpectedDeliveryDate;
-        existingOrder.Status = order.Status;
-        existingOrder.Notes = order.Notes;
+        existingOrder.CustomerId = Guid.Parse(orderDto.CustomerId);
+        existingOrder.CustomerName = orderDto.CustomerName;
+        existingOrder.ProductId = Guid.Parse(orderDto.ProductId);
+        existingOrder.ProductName = orderDto.ProductName;
+        existingOrder.Quantity = orderDto.Quantity;
+        existingOrder.UnitPrice = orderDto.UnitPrice;
+        existingOrder.TotalAmount = orderDto.TotalAmount;
+        existingOrder.OrderDate = orderDto.OrderDate;
+        existingOrder.ExpectedDeliveryDate = orderDto.ExpectedDeliveryDate;
+        existingOrder.Status = orderStatus;
+        existingOrder.Notes = orderDto.Notes;
         existingOrder.UpdatedAt = DateTime.UtcNow;
 
         // Se está sendo marcado como entregue e não tinha data de entrega
-        if (order.Status == OrderStatus.Delivered && existingOrder.DeliveredDate == null && order.DeliveredDate != null)
+        if (orderStatus == OrderStatus.Delivered && existingOrder.DeliveredDate == null)
         {
-            existingOrder.DeliveredDate = DateTime.UtcNow;
+            existingOrder.DeliveredDate = orderDto.DeliveredDate ?? DateTime.UtcNow;
         }
 
         // Atualizar método de pagamento se fornecido
-        if (order.PaymentMethodValue.HasValue)
+        if (paymentMethod.HasValue)
         {
-            existingOrder.PaymentMethodValue = order.PaymentMethodValue;
+            existingOrder.PaymentMethodValue = paymentMethod;
         }
 
         try
