@@ -170,18 +170,19 @@ public class SalesController : ControllerBase
             return NotFound();
         }
 
-        // Não permitir editar vendas pagas
-        if (existingSale.Status == SaleStatus.Paid)
-        {
-            return BadRequest(new { message = "Vendas pagas não podem ser editadas." });
-        }
-
-        // Converter status string para enum (aceita snake_case e PascalCase)
+        // Não permitir alterar o status de vendas que já estão pagas
         var statusValue = saleDto.Status.Replace("_", "");
-        if (!Enum.TryParse<SaleStatus>(statusValue, true, out var saleStatus))
+        if (!Enum.TryParse<SaleStatus>(statusValue, true, out var newSaleStatus))
         {
             return BadRequest(new { message = $"Status inválido: {saleDto.Status}" });
         }
+
+        if (existingSale.Status == SaleStatus.Paid && newSaleStatus != SaleStatus.Paid)
+        {
+            return BadRequest(new { message = "Não é possível alterar o status de vendas pagas." });
+        }
+
+        var saleStatus = newSaleStatus;
 
         // Converter payment method se fornecido (aceita snake_case e PascalCase)
         PaymentMethod? paymentMethod = null;
