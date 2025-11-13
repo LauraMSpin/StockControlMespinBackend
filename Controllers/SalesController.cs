@@ -323,12 +323,6 @@ public class SalesController : ControllerBase
             return NotFound();
         }
 
-        // Não permitir excluir vendas pagas
-        if (sale.Status == SaleStatus.Paid)
-        {
-            return BadRequest(new { message = "Vendas pagas não podem ser excluídas." });
-        }
-
         using var transaction = await _context.Database.BeginTransactionAsync();
 
         try
