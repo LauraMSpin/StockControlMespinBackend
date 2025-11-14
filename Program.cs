@@ -21,6 +21,8 @@ builder.Services.AddDbContext<AppDbContext>(options =>
             o.MapEnum<EstoqueBackEnd.Models.PaymentMethod>("payment_method");
             o.MapEnum<EstoqueBackEnd.Models.SaleStatus>("sale_status");
             o.MapEnum<EstoqueBackEnd.Models.OrderStatus>("order_status");
+            o.MapEnum<EstoqueBackEnd.Models.ExpenseCategory>("expense_category");
+            o.MapEnum<EstoqueBackEnd.Models.InstallmentCategory>("installment_category");
         }));
 
 // Add CORS

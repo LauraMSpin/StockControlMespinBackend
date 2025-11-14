@@ -33,6 +33,8 @@ public class AppDbContext : DbContext
         modelBuilder.HasPostgresEnum<PaymentMethod>("payment_method");
         modelBuilder.HasPostgresEnum<SaleStatus>("sale_status");
         modelBuilder.HasPostgresEnum<OrderStatus>("order_status");
+        modelBuilder.HasPostgresEnum<ExpenseCategory>("expense_category");
+        modelBuilder.HasPostgresEnum<InstallmentCategory>("installment_category");
 
         // Configuração de precisão decimal para PostgreSQL
         foreach (var property in modelBuilder.Model.GetEntityTypes()

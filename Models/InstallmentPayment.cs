@@ -39,7 +39,7 @@ public class InstallmentPayment
 
     [Required]
     [Column("category")]
-    public string Category { get; set; } = string.Empty;
+    public InstallmentCategory Category { get; set; }
 
     [Column("notes")]
     public string? Notes { get; set; }

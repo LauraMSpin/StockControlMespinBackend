@@ -44,7 +44,7 @@ public class InstallmentsController : ControllerBase
 
     // GET: api/Installments/category/{category}
     [HttpGet("category/{category}")]
-    public async Task<ActionResult<IEnumerable<InstallmentPayment>>> GetInstallmentsByCategory(string category)
+    public async Task<ActionResult<IEnumerable<InstallmentPayment>>> GetInstallmentsByCategory(InstallmentCategory category)
     {
         return await _context.InstallmentPayments
             .Where(i => i.Category == category)

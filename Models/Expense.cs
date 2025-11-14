@@ -25,7 +25,7 @@ public class Expense
 
     [Required]
     [Column("category")]
-    public string Category { get; set; } = string.Empty;
+    public ExpenseCategory Category { get; set; }
 
     [Column("amount")]
     public decimal Amount { get; set; }

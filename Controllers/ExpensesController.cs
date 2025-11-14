@@ -41,7 +41,7 @@ public class ExpensesController : ControllerBase
 
     // GET: api/Expenses/category/{category}
     [HttpGet("category/{category}")]
-    public async Task<ActionResult<IEnumerable<Expense>>> GetExpensesByCategory(string category)
+    public async Task<ActionResult<IEnumerable<Expense>>> GetExpensesByCategory(ExpenseCategory category)
     {
         return await _context.Expenses
             .Where(e => e.Category == category)
