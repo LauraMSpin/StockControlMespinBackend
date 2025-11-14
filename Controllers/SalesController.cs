@@ -199,13 +199,21 @@ public class SalesController : ControllerBase
 
         try
         {
-            // Restaurar estoque dos itens antigos
+            // Criar dicionário dos itens antigos para comparação
+            var oldItemsDict = existingSale.Items.ToDictionary(i => i.ProductId, i => i.Quantity);
+            var newItemsDict = saleDto.Items.ToDictionary(i => Guid.Parse(i.ProductId), i => i.Quantity);
+
+            // Restaurar estoque dos itens removidos
             foreach (var oldItem in existingSale.Items)
             {
-                var product = await _context.Products.FindAsync(oldItem.ProductId);
-                if (product != null)
+                if (!newItemsDict.ContainsKey(oldItem.ProductId))
                 {
-                    product.Quantity += oldItem.Quantity;
+                    // Item foi removido, devolver ao estoque
+                    var product = await _context.Products.FindAsync(oldItem.ProductId);
+                    if (product != null)
+                    {
+                        product.Quantity += oldItem.Quantity;
+                    }
                 }
             }
 
@@ -240,13 +248,27 @@ public class SalesController : ControllerBase
                     return BadRequest(new { message = $"Produto {itemDto.ProductName} não encontrado." });
                 }
 
-                if (product.Quantity < newItem.Quantity)
-                {
-                    await transaction.RollbackAsync();
-                    return BadRequest(new { message = $"Estoque insuficiente para {itemDto.ProductName}. Disponível: {product.Quantity}" });
-                }
+                // Calcular diferença de quantidade
+                int oldQuantity = oldItemsDict.ContainsKey(newItem.ProductId) ? oldItemsDict[newItem.ProductId] : 0;
+                int quantityDifference = newItem.Quantity - oldQuantity;
 
-                product.Quantity -= newItem.Quantity;
+                if (quantityDifference > 0)
+                {
+                    // Aumentou a quantidade, verificar estoque
+                    if (product.Quantity < quantityDifference)
+                    {
+                        await transaction.RollbackAsync();
+                        return BadRequest(new { message = $"Estoque insuficiente para {itemDto.ProductName}. Disponível: {product.Quantity}" });
+                    }
+                    product.Quantity -= quantityDifference;
+                }
+                else if (quantityDifference < 0)
+                {
+                    // Diminuiu a quantidade, devolver ao estoque
+                    product.Quantity += Math.Abs(quantityDifference);
+                }
+                // Se quantityDifference == 0, não faz nada
+
                 _context.SaleItems.Add(newItem);
             }
 

@@ -322,10 +322,6 @@ public class OrdersController : ControllerBase
                 var product = await _context.Products.FindAsync(orderItem.ProductId);
                 if (product != null)
                 {
-                    if (product.Quantity < orderItem.Quantity)
-                    {
-                        return BadRequest(new { message = $"Estoque insuficiente para {orderItem.ProductName}. Disponível: {product.Quantity}" });
-                    }
                     product.Quantity -= orderItem.Quantity;
                 }
             }
