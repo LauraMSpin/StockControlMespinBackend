@@ -53,5 +53,5 @@ public class Product
     public ICollection<ProductionMaterial> ProductionMaterials { get; set; } = new List<ProductionMaterial>();
     public ICollection<PriceHistory> PriceHistories { get; set; } = new List<PriceHistory>();
     public ICollection<SaleItem> SaleItems { get; set; } = new List<SaleItem>();
-    public ICollection<Order> Orders { get; set; } = new List<Order>();
+    public ICollection<OrderItem> OrderItems { get; set; } = new List<OrderItem>();
 }

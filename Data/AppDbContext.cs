@@ -19,6 +19,7 @@ public class AppDbContext : DbContext
     public DbSet<Sale> Sales { get; set; }
     public DbSet<SaleItem> SaleItems { get; set; }
     public DbSet<Order> Orders { get; set; }
+    public DbSet<OrderItem> OrderItems { get; set; }
     public DbSet<CategoryPrice> CategoryPrices { get; set; }
     public DbSet<Expense> Expenses { get; set; }
     public DbSet<InstallmentPayment> InstallmentPayments { get; set; }
@@ -99,10 +100,16 @@ public class AppDbContext : DbContext
             .OnDelete(DeleteBehavior.Restrict);
 
         modelBuilder.Entity<Product>()
-            .HasMany(p => p.Orders)
-            .WithOne(o => o.Product)
-            .HasForeignKey(o => o.ProductId)
+            .HasMany(p => p.OrderItems)
+            .WithOne(oi => oi.Product)
+            .HasForeignKey(oi => oi.ProductId)
             .OnDelete(DeleteBehavior.Restrict);
+
+        modelBuilder.Entity<Order>()
+            .HasMany(o => o.Items)
+            .WithOne(oi => oi.Order)
+            .HasForeignKey(oi => oi.OrderId)
+            .OnDelete(DeleteBehavior.Cascade);
 
         modelBuilder.Entity<Material>()
             .HasMany(m => m.ProductionMaterials)

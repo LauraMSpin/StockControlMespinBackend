@@ -22,8 +22,8 @@ public class OrdersController : ControllerBase
     public async Task<ActionResult<IEnumerable<Order>>> GetOrders()
     {
         return await _context.Orders
+            .Include(o => o.Items)
             .Include(o => o.Customer)
-            .Include(o => o.Product)
             .OrderByDescending(o => o.OrderDate)
             .ToListAsync();
     }
@@ -33,8 +33,8 @@ public class OrdersController : ControllerBase
     public async Task<ActionResult<Order>> GetOrder(Guid id)
     {
         var order = await _context.Orders
+            .Include(o => o.Items)
             .Include(o => o.Customer)
-            .Include(o => o.Product)
             .FirstOrDefaultAsync(o => o.Id == id);
 
         if (order == null)
@@ -51,8 +51,8 @@ public class OrdersController : ControllerBase
     {
         return await _context.Orders
             .Where(o => o.CustomerId == customerId)
+            .Include(o => o.Items)
             .Include(o => o.Customer)
-            .Include(o => o.Product)
             .OrderByDescending(o => o.OrderDate)
             .ToListAsync();
     }
@@ -63,8 +63,8 @@ public class OrdersController : ControllerBase
     {
         return await _context.Orders
             .Where(o => o.Status != OrderStatus.Delivered && o.Status != OrderStatus.Cancelled)
+            .Include(o => o.Items)
             .Include(o => o.Customer)
-            .Include(o => o.Product)
             .OrderBy(o => o.ExpectedDeliveryDate)
             .ToListAsync();
     }
@@ -73,128 +73,186 @@ public class OrdersController : ControllerBase
     [HttpPost]
     public async Task<ActionResult<Order>> CreateOrder(OrderDto orderDto)
     {
-        // Converter status string para enum (aceita snake_case e PascalCase)
-        var statusValue = orderDto.Status.Replace("_", "");
-        if (!Enum.TryParse<OrderStatus>(statusValue, true, out var orderStatus))
+        using var transaction = await _context.Database.BeginTransactionAsync();
+        
+        try
         {
-            return BadRequest(new { message = $"Status inválido: {orderDto.Status}" });
-        }
-
-        // Converter payment method se fornecido (aceita snake_case e PascalCase)
-        PaymentMethod? paymentMethod = null;
-        if (!string.IsNullOrEmpty(orderDto.PaymentMethod))
-        {
-            var paymentValue = orderDto.PaymentMethod.Replace("_", "");
-            if (Enum.TryParse<PaymentMethod>(paymentValue, true, out var pm))
+            // Converter status string para enum (aceita snake_case e PascalCase)
+            var statusValue = orderDto.Status.Replace("_", "");
+            if (!Enum.TryParse<OrderStatus>(statusValue, true, out var orderStatus))
             {
-                paymentMethod = pm;
+                return BadRequest(new { message = $"Status inválido: {orderDto.Status}" });
             }
+
+            // Converter payment method se fornecido (aceita snake_case e PascalCase)
+            PaymentMethod? paymentMethod = null;
+            if (!string.IsNullOrEmpty(orderDto.PaymentMethod))
+            {
+                var paymentValue = orderDto.PaymentMethod.Replace("_", "");
+                if (Enum.TryParse<PaymentMethod>(paymentValue, true, out var pm))
+                {
+                    paymentMethod = pm;
+                }
+            }
+
+            var order = new Order
+            {
+                Id = Guid.NewGuid(),
+                CustomerId = Guid.Parse(orderDto.CustomerId),
+                CustomerName = orderDto.CustomerName,
+                Subtotal = orderDto.Subtotal,
+                DiscountPercentage = orderDto.DiscountPercentage,
+                DiscountAmount = orderDto.DiscountAmount,
+                TotalAmount = orderDto.TotalAmount,
+                OrderDate = orderDto.OrderDate,
+                ExpectedDeliveryDate = orderDto.ExpectedDeliveryDate,
+                DeliveredDate = orderDto.DeliveredDate,
+                Status = orderStatus,
+                PaymentMethodValue = paymentMethod,
+                Notes = orderDto.Notes,
+                CreatedAt = DateTime.UtcNow,
+                UpdatedAt = DateTime.UtcNow,
+                Items = new List<OrderItem>()
+            };
+
+            // Processar itens
+            foreach (var itemDto in orderDto.Items)
+            {
+                var item = new OrderItem
+                {
+                    Id = Guid.NewGuid(),
+                    OrderId = order.Id,
+                    ProductId = Guid.Parse(itemDto.ProductId),
+                    ProductName = itemDto.ProductName,
+                    Quantity = itemDto.Quantity,
+                    UnitPrice = itemDto.UnitPrice,
+                    TotalPrice = itemDto.TotalPrice,
+                    CreatedAt = DateTime.UtcNow
+                };
+
+                order.Items.Add(item);
+            }
+
+            _context.Orders.Add(order);
+            await _context.SaveChangesAsync();
+            await transaction.CommitAsync();
+
+            return CreatedAtAction(nameof(GetOrder), new { id = order.Id }, order);
         }
-
-        var order = new Order
+        catch (Exception ex)
         {
-            Id = Guid.NewGuid(),
-            CustomerId = Guid.Parse(orderDto.CustomerId),
-            CustomerName = orderDto.CustomerName,
-            ProductId = Guid.Parse(orderDto.ProductId),
-            ProductName = orderDto.ProductName,
-            Quantity = orderDto.Quantity,
-            UnitPrice = orderDto.UnitPrice,
-            TotalAmount = orderDto.TotalAmount,
-            OrderDate = orderDto.OrderDate,
-            ExpectedDeliveryDate = orderDto.ExpectedDeliveryDate,
-            DeliveredDate = orderDto.DeliveredDate,
-            Status = orderStatus,
-            PaymentMethodValue = paymentMethod,
-            Notes = orderDto.Notes,
-            CreatedAt = DateTime.UtcNow,
-            UpdatedAt = DateTime.UtcNow
-        };
-
-        _context.Orders.Add(order);
-        await _context.SaveChangesAsync();
-
-        return CreatedAtAction(nameof(GetOrder), new { id = order.Id }, order);
+            await transaction.RollbackAsync();
+            return StatusCode(500, new { message = "Erro ao criar encomenda", error = ex.Message });
+        }
     }
 
     // PUT: api/Orders/5
     [HttpPut("{id}")]
     public async Task<IActionResult> UpdateOrder(Guid id, OrderDto orderDto)
     {
-        var existingOrder = await _context.Orders.FindAsync(id);
+        var existingOrder = await _context.Orders
+            .Include(o => o.Items)
+            .FirstOrDefaultAsync(o => o.Id == id);
+
         if (existingOrder == null)
         {
             return NotFound();
         }
 
-        // Converter status string para enum (aceita snake_case e PascalCase)
-        var statusValue = orderDto.Status.Replace("_", "");
-        if (!Enum.TryParse<OrderStatus>(statusValue, true, out var orderStatus))
-        {
-            return BadRequest(new { message = $"Status inválido: {orderDto.Status}" });
-        }
-
-        // Converter payment method se fornecido (aceita snake_case e PascalCase)
-        PaymentMethod? paymentMethod = null;
-        if (!string.IsNullOrEmpty(orderDto.PaymentMethod))
-        {
-            var paymentValue = orderDto.PaymentMethod.Replace("_", "");
-            if (Enum.TryParse<PaymentMethod>(paymentValue, true, out var pm))
-            {
-                paymentMethod = pm;
-            }
-        }
-
-        // Atualizar apenas os campos necessários
-        existingOrder.CustomerId = Guid.Parse(orderDto.CustomerId);
-        existingOrder.CustomerName = orderDto.CustomerName;
-        existingOrder.ProductId = Guid.Parse(orderDto.ProductId);
-        existingOrder.ProductName = orderDto.ProductName;
-        existingOrder.Quantity = orderDto.Quantity;
-        existingOrder.UnitPrice = orderDto.UnitPrice;
-        existingOrder.TotalAmount = orderDto.TotalAmount;
-        existingOrder.OrderDate = orderDto.OrderDate;
-        existingOrder.ExpectedDeliveryDate = orderDto.ExpectedDeliveryDate;
-        existingOrder.Status = orderStatus;
-        existingOrder.Notes = orderDto.Notes;
-        existingOrder.UpdatedAt = DateTime.UtcNow;
-
-        // Se está sendo marcado como entregue e não tinha data de entrega
-        if (orderStatus == OrderStatus.Delivered && existingOrder.DeliveredDate == null)
-        {
-            existingOrder.DeliveredDate = orderDto.DeliveredDate ?? DateTime.UtcNow;
-        }
-
-        // Atualizar método de pagamento se fornecido
-        if (paymentMethod.HasValue)
-        {
-            existingOrder.PaymentMethodValue = paymentMethod;
-        }
+        using var transaction = await _context.Database.BeginTransactionAsync();
 
         try
         {
-            await _context.SaveChangesAsync();
-        }
-        catch (DbUpdateConcurrencyException)
-        {
-            if (!OrderExists(id))
+            // Converter status string para enum (aceita snake_case e PascalCase)
+            var statusValue = orderDto.Status.Replace("_", "");
+            if (!Enum.TryParse<OrderStatus>(statusValue, true, out var orderStatus))
             {
-                return NotFound();
+                return BadRequest(new { message = $"Status inválido: {orderDto.Status}" });
             }
-            else
-            {
-                throw;
-            }
-        }
 
-        return NoContent();
+            // Converter payment method se fornecido (aceita snake_case e PascalCase)
+            PaymentMethod? paymentMethod = null;
+            if (!string.IsNullOrEmpty(orderDto.PaymentMethod))
+            {
+                var paymentValue = orderDto.PaymentMethod.Replace("_", "");
+                if (Enum.TryParse<PaymentMethod>(paymentValue, true, out var pm))
+                {
+                    paymentMethod = pm;
+                }
+            }
+
+            // Remover itens antigos do banco
+            var existingItems = await _context.OrderItems
+                .Where(oi => oi.OrderId == id)
+                .ToListAsync();
+            if (existingItems.Any())
+            {
+                _context.OrderItems.RemoveRange(existingItems);
+            }
+
+            // Adicionar novos itens
+            foreach (var itemDto in orderDto.Items)
+            {
+                var newItem = new OrderItem
+                {
+                    Id = Guid.NewGuid(),
+                    OrderId = id,
+                    ProductId = Guid.Parse(itemDto.ProductId),
+                    ProductName = itemDto.ProductName,
+                    Quantity = itemDto.Quantity,
+                    UnitPrice = itemDto.UnitPrice,
+                    TotalPrice = itemDto.TotalPrice,
+                    CreatedAt = DateTime.UtcNow
+                };
+
+                _context.OrderItems.Add(newItem);
+            }
+
+            // Atualizar apenas os campos necessários
+            existingOrder.CustomerId = Guid.Parse(orderDto.CustomerId);
+            existingOrder.CustomerName = orderDto.CustomerName;
+            existingOrder.Subtotal = orderDto.Subtotal;
+            existingOrder.DiscountPercentage = orderDto.DiscountPercentage;
+            existingOrder.DiscountAmount = orderDto.DiscountAmount;
+            existingOrder.TotalAmount = orderDto.TotalAmount;
+            existingOrder.OrderDate = orderDto.OrderDate;
+            existingOrder.ExpectedDeliveryDate = orderDto.ExpectedDeliveryDate;
+            existingOrder.Status = orderStatus;
+            existingOrder.Notes = orderDto.Notes;
+            existingOrder.UpdatedAt = DateTime.UtcNow;
+
+            // Se está sendo marcado como entregue e não tinha data de entrega
+            if (orderStatus == OrderStatus.Delivered && existingOrder.DeliveredDate == null)
+            {
+                existingOrder.DeliveredDate = orderDto.DeliveredDate ?? DateTime.UtcNow;
+            }
+
+            // Atualizar método de pagamento se fornecido
+            if (paymentMethod.HasValue)
+            {
+                existingOrder.PaymentMethodValue = paymentMethod;
+            }
+
+            await _context.SaveChangesAsync();
+            await transaction.CommitAsync();
+
+            return NoContent();
+        }
+        catch (Exception ex)
+        {
+            await transaction.RollbackAsync();
+            return StatusCode(500, new { message = "Erro ao atualizar encomenda", error = ex.Message });
+        }
     }
 
     // PUT: api/Orders/5/status
     [HttpPut("{id}/status")]
     public async Task<IActionResult> UpdateOrderStatus(Guid id, [FromBody] UpdateStatusRequest request)
     {
-        var order = await _context.Orders.FindAsync(id);
+        var order = await _context.Orders
+            .Include(o => o.Items)
+            .FirstOrDefaultAsync(o => o.Id == id);
+            
         if (order == null)
         {
             return NotFound();
@@ -230,7 +288,9 @@ public class OrdersController : ControllerBase
                 CustomerId = order.CustomerId,
                 CustomerName = order.CustomerName,
                 SaleDate = DateTime.UtcNow,
-                Subtotal = order.TotalAmount,
+                Subtotal = order.Subtotal,
+                DiscountPercentage = order.DiscountPercentage,
+                DiscountAmount = order.DiscountAmount,
                 TotalAmount = order.TotalAmount,
                 PaymentMethodValue = order.PaymentMethodValue ?? PaymentMethod.Pix,
                 Status = SaleStatus.Paid,
@@ -238,21 +298,37 @@ public class OrdersController : ControllerBase
                 Notes = $"Venda automática da encomenda #{order.Id}",
                 CreatedAt = DateTime.UtcNow,
                 UpdatedAt = DateTime.UtcNow,
-                Items = new List<SaleItem>
-                {
-                    new SaleItem
-                    {
-                        Id = Guid.NewGuid(),
-                        SaleId = Guid.NewGuid(),
-                        ProductId = order.ProductId,
-                        ProductName = order.ProductName,
-                        Quantity = order.Quantity,
-                        UnitPrice = order.UnitPrice,
-                        TotalPrice = order.TotalAmount,
-                        CreatedAt = DateTime.UtcNow
-                    }
-                }
+                Items = new List<SaleItem>()
             };
+
+            // Converter itens da encomenda em itens da venda
+            foreach (var orderItem in order.Items)
+            {
+                var saleItem = new SaleItem
+                {
+                    Id = Guid.NewGuid(),
+                    SaleId = sale.Id,
+                    ProductId = orderItem.ProductId,
+                    ProductName = orderItem.ProductName,
+                    Quantity = orderItem.Quantity,
+                    UnitPrice = orderItem.UnitPrice,
+                    TotalPrice = orderItem.TotalPrice,
+                    CreatedAt = DateTime.UtcNow
+                };
+
+                sale.Items.Add(saleItem);
+
+                // Reduzir estoque
+                var product = await _context.Products.FindAsync(orderItem.ProductId);
+                if (product != null)
+                {
+                    if (product.Quantity < orderItem.Quantity)
+                    {
+                        return BadRequest(new { message = $"Estoque insuficiente para {orderItem.ProductName}. Disponível: {product.Quantity}" });
+                    }
+                    product.Quantity -= orderItem.Quantity;
+                }
+            }
 
             _context.Sales.Add(sale);
         }
@@ -266,7 +342,10 @@ public class OrdersController : ControllerBase
     [HttpDelete("{id}")]
     public async Task<IActionResult> DeleteOrder(Guid id)
     {
-        var order = await _context.Orders.FindAsync(id);
+        var order = await _context.Orders
+            .Include(o => o.Items)
+            .FirstOrDefaultAsync(o => o.Id == id);
+            
         if (order == null)
         {
             return NotFound();

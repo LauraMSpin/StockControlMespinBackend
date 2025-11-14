@@ -28,20 +28,14 @@ public class Order
     [Column("customer_name")]
     public string CustomerName { get; set; } = string.Empty;
 
-    [Required]
-    [Column("product_id")]
-    public Guid ProductId { get; set; }
+    [Column("subtotal")]
+    public decimal Subtotal { get; set; }
 
-    [Required]
-    [MaxLength(255)]
-    [Column("product_name")]
-    public string ProductName { get; set; } = string.Empty;
+    [Column("discount_percentage")]
+    public decimal DiscountPercentage { get; set; }
 
-    [Column("quantity")]
-    public int Quantity { get; set; }
-
-    [Column("unit_price")]
-    public decimal UnitPrice { get; set; }
+    [Column("discount_amount")]
+    public decimal DiscountAmount { get; set; }
 
     [Column("total_amount")]
     public decimal TotalAmount { get; set; }
@@ -75,6 +69,5 @@ public class Order
     [ForeignKey("CustomerId")]
     public Customer Customer { get; set; } = null!;
 
-    [ForeignKey("ProductId")]
-    public Product Product { get; set; } = null!;
+    public ICollection<OrderItem> Items { get; set; } = new List<OrderItem>();
 }
