@@ -95,6 +95,17 @@ public class SalesController : ControllerBase
                 return BadRequest(new { message = $"Status inválido: {saleDto.Status}" });
             }
 
+            // Processar paymentMethod se fornecido
+            PaymentMethod? paymentMethod = null;
+            if (!string.IsNullOrEmpty(saleDto.PaymentMethod))
+            {
+                var paymentValue = saleDto.PaymentMethod.Replace("_", "");
+                if (Enum.TryParse<PaymentMethod>(paymentValue, true, out var pm))
+                {
+                    paymentMethod = pm;
+                }
+            }
+
             var sale = new Sale
             {
                 Id = Guid.NewGuid(),
@@ -104,8 +115,10 @@ public class SalesController : ControllerBase
                 Subtotal = saleDto.Subtotal,
                 DiscountPercentage = saleDto.DiscountPercentage,
                 DiscountAmount = saleDto.DiscountAmount,
+                ShippingCost = saleDto.ShippingCost,
                 TotalAmount = saleDto.TotalAmount,
                 Status = saleStatus,
+                PaymentMethodValue = paymentMethod,
                 Notes = saleDto.Notes,
                 CreatedAt = DateTime.UtcNow,
                 UpdatedAt = DateTime.UtcNow,
@@ -278,6 +291,7 @@ public class SalesController : ControllerBase
             existingSale.Subtotal = saleDto.Subtotal;
             existingSale.DiscountPercentage = saleDto.DiscountPercentage;
             existingSale.DiscountAmount = saleDto.DiscountAmount;
+            existingSale.ShippingCost = saleDto.ShippingCost;
             existingSale.TotalAmount = saleDto.TotalAmount;
             existingSale.SaleDate = saleDto.SaleDate;
             existingSale.Status = saleStatus;

@@ -44,6 +44,9 @@ public class Sale
     [Column("discount_amount")]
     public decimal DiscountAmount { get; set; } = 0;
 
+    [Column("shipping_cost")]
+    public decimal ShippingCost { get; set; } = 0;
+
     [Column("total_amount")]
     public decimal TotalAmount { get; set; }
 

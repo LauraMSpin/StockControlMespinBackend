@@ -81,9 +81,10 @@ public class CategoryPricesController : ControllerBase
     [HttpPut("{id}")]
     public async Task<IActionResult> UpdateCategoryPrice(Guid id, CategoryPrice categoryPrice)
     {
-        if (id != categoryPrice.Id)
+        var existingCategory = await _context.CategoryPrices.FindAsync(id);
+        if (existingCategory == null)
         {
-            return BadRequest();
+            return NotFound();
         }
 
         // Check if another category with the same name exists
@@ -95,8 +96,9 @@ public class CategoryPricesController : ControllerBase
             return Conflict(new { message = "A category with this name already exists" });
         }
 
-        categoryPrice.UpdatedAt = DateTime.UtcNow;
-        _context.Entry(categoryPrice).State = EntityState.Modified;
+        existingCategory.CategoryName = categoryPrice.CategoryName;
+        existingCategory.Price = categoryPrice.Price;
+        existingCategory.UpdatedAt = DateTime.UtcNow;
 
         try
         {
