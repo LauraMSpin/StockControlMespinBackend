@@ -206,7 +206,7 @@ public class ProductsController : ControllerBase
 
     // POST: api/Products/5/update-stock
     [HttpPost("{id}/update-stock")]
-    public async Task<IActionResult> UpdateStock(Guid id, [FromBody] int quantity)
+    public async Task<IActionResult> UpdateStock(Guid id, [FromBody] UpdateStockDto dto)
     {
         var product = await _context.Products.FindAsync(id);
         if (product == null)
@@ -215,7 +215,7 @@ public class ProductsController : ControllerBase
         }
 
         // Define a quantidade total, não adiciona
-        product.Quantity = quantity;
+        product.Quantity = dto.Quantity;
         await _context.SaveChangesAsync();
 
         return Ok(new { product.Id, product.Name, product.Quantity });
