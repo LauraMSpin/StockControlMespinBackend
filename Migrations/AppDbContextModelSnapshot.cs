@@ -21,16 +21,11 @@ namespace EstoqueBackEnd.Migrations
                 .HasAnnotation("ProductVersion", "10.0.1")
                 .HasAnnotation("Relational:MaxIdentifierLength", 63);
 
-            NpgsqlModelBuilderExtensions.HasPostgresEnum(modelBuilder, "expense_category", new[] { "fixed_cost", "investment", "other", "production", "variable_cost" });
-            NpgsqlModelBuilderExtensions.HasPostgresEnum(modelBuilder, "expense_category", "expense_category", new[] { "production", "investment", "fixed_cost", "variable_cost", "other" });
-            NpgsqlModelBuilderExtensions.HasPostgresEnum(modelBuilder, "installment_category", new[] { "equipment", "investment", "other", "production" });
-            NpgsqlModelBuilderExtensions.HasPostgresEnum(modelBuilder, "installment_category", "installment_category", new[] { "production", "investment", "equipment", "other" });
-            NpgsqlModelBuilderExtensions.HasPostgresEnum(modelBuilder, "order_status", new[] { "cancelled", "delivered", "in_production", "pending", "ready_for_delivery" });
-            NpgsqlModelBuilderExtensions.HasPostgresEnum(modelBuilder, "order_status", "order_status", new[] { "pending", "in_production", "ready_for_delivery", "delivered", "cancelled" });
-            NpgsqlModelBuilderExtensions.HasPostgresEnum(modelBuilder, "payment_method", new[] { "cash", "credit", "debit", "pix" });
-            NpgsqlModelBuilderExtensions.HasPostgresEnum(modelBuilder, "payment_method", "payment_method", new[] { "cash", "pix", "debit", "credit" });
-            NpgsqlModelBuilderExtensions.HasPostgresEnum(modelBuilder, "sale_status", new[] { "awaiting_payment", "cancelled", "paid", "pending" });
-            NpgsqlModelBuilderExtensions.HasPostgresEnum(modelBuilder, "sale_status", "sale_status", new[] { "pending", "awaiting_payment", "paid", "cancelled" });
+            NpgsqlModelBuilderExtensions.HasPostgresEnum(modelBuilder, "public", "expense_category", new[] { "production", "investment", "fixed_cost", "variable_cost", "other" });
+            NpgsqlModelBuilderExtensions.HasPostgresEnum(modelBuilder, "public", "installment_category", new[] { "production", "investment", "equipment", "other" });
+            NpgsqlModelBuilderExtensions.HasPostgresEnum(modelBuilder, "public", "order_status", new[] { "pending", "in_production", "ready_for_delivery", "delivered", "cancelled" });
+            NpgsqlModelBuilderExtensions.HasPostgresEnum(modelBuilder, "public", "payment_method", new[] { "cash", "pix", "debit", "credit" });
+            NpgsqlModelBuilderExtensions.HasPostgresEnum(modelBuilder, "public", "sale_status", new[] { "pending", "awaiting_payment", "paid", "cancelled" });
             NpgsqlModelBuilderExtensions.UseIdentityByDefaultColumns(modelBuilder);
 
             modelBuilder.Entity("EstoqueBackEnd.Models.CategoryPrice", b =>
@@ -136,7 +131,7 @@ namespace EstoqueBackEnd.Migrations
                         .HasColumnName("amount");
 
                     b.Property<ExpenseCategory>("Category")
-                        .HasColumnType("expense_category")
+                        .HasColumnType("\"public.expense_category\"")
                         .HasColumnName("category");
 
                     b.Property<DateTime>("CreatedAt")
@@ -175,7 +170,7 @@ namespace EstoqueBackEnd.Migrations
                         .HasColumnName("id");
 
                     b.Property<InstallmentCategory>("Category")
-                        .HasColumnType("installment_category")
+                        .HasColumnType("\"public.installment_category\"")
                         .HasColumnName("category");
 
                     b.Property<DateTime>("CreatedAt")
@@ -382,11 +377,11 @@ namespace EstoqueBackEnd.Migrations
                         .HasColumnName("order_date");
 
                     b.Property<PaymentMethod?>("PaymentMethodValue")
-                        .HasColumnType("payment_method")
+                        .HasColumnType("\"public.payment_method\"")
                         .HasColumnName("payment_method");
 
                     b.Property<OrderStatus>("Status")
-                        .HasColumnType("order_status")
+                        .HasColumnType("\"public.order_status\"")
                         .HasColumnName("status");
 
                     b.Property<decimal>("Subtotal")
@@ -656,7 +651,7 @@ namespace EstoqueBackEnd.Migrations
                         .HasColumnName("notes");
 
                     b.Property<PaymentMethod?>("PaymentMethodValue")
-                        .HasColumnType("payment_method")
+                        .HasColumnType("\"public.payment_method\"")
                         .HasColumnName("payment_method")
                         .HasJsonPropertyName("paymentMethod");
 
@@ -670,7 +665,7 @@ namespace EstoqueBackEnd.Migrations
                         .HasColumnName("shipping_cost");
 
                     b.Property<SaleStatus>("Status")
-                        .HasColumnType("sale_status")
+                        .HasColumnType("\"public.sale_status\"")
                         .HasColumnName("status");
 
                     b.Property<decimal>("Subtotal")

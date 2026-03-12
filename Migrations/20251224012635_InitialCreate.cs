@@ -13,16 +13,11 @@ namespace EstoqueBackEnd.Migrations
         protected override void Up(MigrationBuilder migrationBuilder)
         {
             migrationBuilder.AlterDatabase()
-                .Annotation("Npgsql:Enum:expense_category", "fixed_cost,investment,other,production,variable_cost")
-                .Annotation("Npgsql:Enum:expense_category.expense_category", "production,investment,fixed_cost,variable_cost,other")
-                .Annotation("Npgsql:Enum:installment_category", "equipment,investment,other,production")
-                .Annotation("Npgsql:Enum:installment_category.installment_category", "production,investment,equipment,other")
-                .Annotation("Npgsql:Enum:order_status", "cancelled,delivered,in_production,pending,ready_for_delivery")
-                .Annotation("Npgsql:Enum:order_status.order_status", "pending,in_production,ready_for_delivery,delivered,cancelled")
-                .Annotation("Npgsql:Enum:payment_method", "cash,credit,debit,pix")
-                .Annotation("Npgsql:Enum:payment_method.payment_method", "cash,pix,debit,credit")
-                .Annotation("Npgsql:Enum:sale_status", "awaiting_payment,cancelled,paid,pending")
-                .Annotation("Npgsql:Enum:sale_status.sale_status", "pending,awaiting_payment,paid,cancelled");
+                .Annotation("Npgsql:Enum:public.expense_category", "production,investment,fixed_cost,variable_cost,other")
+                .Annotation("Npgsql:Enum:public.installment_category", "production,investment,equipment,other")
+                .Annotation("Npgsql:Enum:public.order_status", "pending,in_production,ready_for_delivery,delivered,cancelled")
+                .Annotation("Npgsql:Enum:public.payment_method", "cash,pix,debit,credit")
+                .Annotation("Npgsql:Enum:public.sale_status", "pending,awaiting_payment,paid,cancelled");
 
             migrationBuilder.CreateTable(
                 name: "category_prices",

@@ -30,11 +30,11 @@ public class AppDbContext : DbContext
         base.OnModelCreating(modelBuilder);
 
         // Configurar enums do PostgreSQL
-        modelBuilder.HasPostgresEnum<PaymentMethod>("payment_method");
-        modelBuilder.HasPostgresEnum<SaleStatus>("sale_status");
-        modelBuilder.HasPostgresEnum<OrderStatus>("order_status");
-        modelBuilder.HasPostgresEnum<ExpenseCategory>("expense_category");
-        modelBuilder.HasPostgresEnum<InstallmentCategory>("installment_category");
+        modelBuilder.HasPostgresEnum<PaymentMethod>(schema: "public", name: "payment_method");
+        modelBuilder.HasPostgresEnum<SaleStatus>(schema: "public", name: "sale_status");
+        modelBuilder.HasPostgresEnum<OrderStatus>(schema: "public", name: "order_status");
+        modelBuilder.HasPostgresEnum<ExpenseCategory>(schema: "public", name: "expense_category");
+        modelBuilder.HasPostgresEnum<InstallmentCategory>(schema: "public", name: "installment_category");
 
         // Configuração de precisão decimal para PostgreSQL
         foreach (var property in modelBuilder.Model.GetEntityTypes()
